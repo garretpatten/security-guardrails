@@ -7,13 +7,13 @@ Review, Trivy CVE/license audit, CycloneDX SBOM). Keep changes **high-signal**,
 
 ## Repository layout
 
-| Path                                         | Purpose                                                       |
-| -------------------------------------------- | ------------------------------------------------------------- |
-| `.github/workflows/security-guardrails.yaml` | Reusable workflow consumed by other repos                     |
-| `.github/workflows/test-workflow.yaml`       | Self-test on PRs (calls reusable workflow)                    |
-| `.github/workflows/quality-checks.yaml`      | Calls `garretpatten/quality-checks` (actionlint, yamllint, …) |
-| `docs/assets/`                               | Branding (shield mark SVG)                                    |
-| `.trivyignore`                               | Example path exclusions for Trivy (consumers copy/adapt)      |
+| Path                                         | Purpose                                                  |
+| -------------------------------------------- | -------------------------------------------------------- |
+| `.github/workflows/security-guardrails.yaml` | Reusable workflow consumed by other repos                |
+| `.github/workflows/test-workflow.yaml`       | Self-test on PRs (calls reusable workflow)               |
+| `.github/workflows/quality-checks.yaml`      | Calls `garretpatten/quality-checks` (see linters below)  |
+| `docs/assets/`                               | Branding (shield mark SVG)                               |
+| `.trivyignore`                               | Example path exclusions for Trivy (consumers copy/adapt) |
 
 ## Workflow conventions
 
@@ -42,9 +42,24 @@ Do not commit unless the user asks.
 
 ## Verify before you finish
 
-Run **all** checks that apply to your edits before finalizing. **actionlint is
-required** for any workflow YAML change — it catches invalid syntax, expression
-errors, and embedded shell issues (including shellcheck) before CI.
+Run **all** checks that match what you changed before finalizing. CI’s
+**Quality Checks** workflow (`.github/workflows/quality-checks.yaml`) delegates
+to `garretpatten/quality-checks` and runs these tools on pull requests:
+
+| CI linter    | Local equivalent (this repo)                        |
+| ------------ | --------------------------------------------------- |
+| actionlint   | `npm run lint:workflows` / `actionlint`             |
+| eslint       | _(no JS sources — skipped locally)_                 |
+| hadolint     | _(no Dockerfiles — skipped locally)_                |
+| jq           | _(no `.json` scripts — skipped locally)_            |
+| markdownlint | `npm run lint:md`                                   |
+| prettier     | `npm run format:check`                              |
+| ruff         | _(no Python — skipped locally)_                     |
+| shellcheck   | Covered by **actionlint** on workflow `run:` blocks |
+| taplo        | _(no TOML — skipped locally)_                       |
+| yamllint     | `npm run lint:yaml`                                 |
+
+**Default before you finish:**
 
 ```bash
 npm install
@@ -52,12 +67,12 @@ npm install
 npm run lint
 ```
 
-Or run individually:
+Or step by step:
 
 ```bash
 npx prettier --check .
 npx markdownlint-cli2 "**/*.md" "#node_modules"
-yamllint .github/workflows/*.yaml
+yamllint .github .yamllint .markdownlint.yaml
 actionlint
 ```
 
@@ -68,14 +83,15 @@ Install tools locally if missing:
 | **actionlint** | `brew install actionlint` |
 | **yamllint**   | `pip install yamllint`    |
 
-CI’s **Quality Checks** workflow also runs **actionlint**, **yamllint**, and
-**markdownlint** on pull requests — local runs should pass first.
+Local runs should pass before you finalize — especially **yamllint** on all
+`.github/` YAML (workflows, **`ISSUE_TEMPLATE`**, **`dependabot.yaml`**, not
+just `workflows/*.yaml`).
 
-| If you edited              | Run                                                            |
-| -------------------------- | -------------------------------------------------------------- |
-| Any `*.md`                 | `npm run lint:md` (and `format:check` if prose/layout changed) |
-| `.github/workflows/*.yaml` | **`actionlint`** and **`yamllint`** (mandatory)                |
-| `package.json` / lockfile  | Full `npm run lint`                                            |
+| If you edited                                                                                     | Run                                                                    |
+| ------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| Any `*.md`                                                                                        | `npm run lint:md` and `npm run format:check` when layout/prose changed |
+| Workflows, **`ISSUE_TEMPLATE`**, **`dependabot.yaml`**, **`.yamllint`**, **`.markdownlint.yaml`** | `npm run lint:yaml` and `npm run lint:workflows`                       |
+| `package.json` / lockfile                                                                         | Full `npm run lint`                                                    |
 
 ## License
 

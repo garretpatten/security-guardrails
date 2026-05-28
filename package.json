@@ -5,7 +5,7 @@
     "format:check": "prettier --check .",
     "lint": "npm run format:check && npm run lint:md && npm run lint:yaml && npm run lint:workflows",
     "lint:md": "markdownlint-cli2 \"**/*.md\" \"#node_modules\"",
-    "lint:yaml": "yamllint .github/workflows/*.yaml",
+    "lint:yaml": "yamllint .github .yamllint .markdownlint.yaml",
     "lint:workflows": "actionlint"
   },
   "devDependencies": {

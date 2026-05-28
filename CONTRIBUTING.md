@@ -28,11 +28,10 @@ Or step by step:
 ```bash
 npx prettier --check .
 npx markdownlint-cli2 "**/*.md" "#node_modules"
-yamllint .github/workflows/*.yaml
+yamllint .github .yamllint .markdownlint.yaml
 actionlint
 ```
 
-Install **actionlint** locally if missing (`brew install actionlint`). Workflow
-edits **must** pass **actionlint** before merge.
+Install **actionlint** and **yamllint** locally if missing (`brew install actionlint`, `pip install yamllint`). **`npm run lint`** mirrors CI **Quality Checks** for this repo (prettier, markdownlint, yamllint on all `.github/` YAML, actionlint).
 
 Documentation-only changes still need **`prettier`** and **`markdownlint`** on touched Markdown files.
