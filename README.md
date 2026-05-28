@@ -2,14 +2,14 @@
 
 <p align="center">
     <img
-        src="./docs/assets/security-checks-mark.svg"
-        alt="Security Checks shield logo"
+        src="./docs/assets/security-guardrails-mark.svg"
+        alt="Security Guardrails shield logo"
         width="96"
         height="96"
     />
 </p>
 
-<h1 align="center">Security Checks</h1>
+<h1 align="center">Security Guardrails</h1>
 
 <p align="center">
     <strong>High-signal reusable GitHub Actions security gates for pull requests.</strong>
@@ -24,7 +24,7 @@
 <p align="center">
     <a href="./LICENSE"
         ><img
-            src="https://img.shields.io/github/license/garretpatten/security-checks?style=flat-square"
+            src="https://img.shields.io/github/license/garretpatten/security-guardrails?style=flat-square"
             alt="License: MIT"
     /></a>
     <img
@@ -42,20 +42,15 @@
 </p>
 
 <p align="center">
-    <a href="https://github.com/garretpatten/security-checks/actions/workflows/test-workflow.yaml"
+    <a href="https://github.com/garretpatten/security-guardrails/actions/workflows/test-workflow.yaml"
         ><img
-            src="https://img.shields.io/github/actions/workflow/status/garretpatten/security-checks/test-workflow.yaml?branch=master&label=CI&logo=github&style=flat-square"
+            src="https://img.shields.io/github/actions/workflow/status/garretpatten/security-guardrails/test-workflow.yaml?branch=master&label=CI&logo=github&style=flat-square"
             alt="Test workflow status"
     /></a>
-    <a href="https://github.com/garretpatten/security-checks/actions/workflows/quality-checks.yaml"
+    <a href="https://github.com/garretpatten/security-guardrails/actions/workflows/quality-checks.yaml"
         ><img
-            src="https://img.shields.io/github/actions/workflow/status/garretpatten/security-checks/quality-checks.yaml?branch=master&label=quality&logo=github&style=flat-square"
+            src="https://img.shields.io/github/actions/workflow/status/garretpatten/security-guardrails/quality-checks.yaml?branch=master&label=quality&logo=github&style=flat-square"
             alt="Quality checks workflow status"
-    /></a>
-    <a href="https://github.com/garretpatten/security-checks/actions/workflows/sbom-provenance.yaml"
-        ><img
-            src="https://img.shields.io/github/actions/workflow/status/garretpatten/security-checks/sbom-provenance.yaml?branch=master&label=SBOM%20%2B%20SLSA&logo=github&style=flat-square"
-            alt="SBOM and SLSA provenance workflow status"
     /></a>
 </p>
 
@@ -73,7 +68,7 @@
 
 ## Overview
 
-**Security Checks** is a [reusable GitHub Actions
+**Security Guardrails** is a [reusable GitHub Actions
 workflow](https://docs.github.com/en/actions/using-workflows/reusing-workflows)
 that runs on pull requests in consumer repositories. It focuses on **changed
 files and dependencies**, surfaces **high-confidence findings**, and uploads
@@ -85,22 +80,18 @@ machine-readable results (JSON / CycloneDX) for downstream tooling.
 | **TruffleHog – Secrets** | [TruffleHog](https://github.com/trufflesecurity/trufflehog)        | **Verified** credentials only (`--results=verified`), JSON output                    |
 | **Supply Chain**         | Dependency Review + [Trivy](https://github.com/aquasecurity/trivy) | New vulnerable deps, CRITICAL/HIGH CVEs, forbidden copyleft licenses, CycloneDX SBOM |
 
-This repository also publishes **SLSA build provenance** and **SBOM
-attestations** on pushes to `master` and version tags (see
-[Supply chain transparency](#supply-chain-transparency)).
-
 ## Quick start
 
-Add a workflow in your repository (e.g. `.github/workflows/security-checks.yaml`):
+Add a workflow in your repository (e.g. `.github/workflows/security-guardrails.yaml`):
 
 ```yaml
-name: 'Security Checks'
+name: 'Security Guardrails'
 
 on: pull_request
 
 jobs:
-  security-checks:
-    uses: garretpatten/security-checks/.github/workflows/security-checks.yaml@master
+  security-guardrails:
+    uses: garretpatten/security-guardrails/.github/workflows/security-guardrails.yaml@master
     with:
       opengrep_run: true
       trufflehog_run: true
@@ -111,7 +102,7 @@ jobs:
 **Pin a commit SHA** instead of `@master` for supply-chain control:
 
 ```yaml
-uses: garretpatten/security-checks/.github/workflows/security-checks.yaml@<full-commit-sha>
+uses: garretpatten/security-guardrails/.github/workflows/security-guardrails.yaml@<full-commit-sha>
 ```
 
 ## Workflow inputs
@@ -124,7 +115,7 @@ uses: garretpatten/security-checks/.github/workflows/security-checks.yaml@<full-
 | `opengrep_version` | string  | `v1.22.0`       | Pinned OpenGrep release tag                      |
 | `trivy_severity`   | string  | `CRITICAL,HIGH` | Minimum Trivy vulnerability severities           |
 
-Dependabot PRs are skipped automatically (same as before).
+Dependabot PRs are skipped automatically.
 
 ## Scanners
 
@@ -161,21 +152,22 @@ Semgrep CE with compatible rules and SARIF/JSON output. The workflow:
 Add a **`.trivyignore`** in your repo to exclude paths (see this repo’s
 example).
 
-## Supply chain transparency
+## Migration
 
-On pushes to **`master`** and tags matching **`v*`**, the
-[`sbom-provenance.yaml`](./.github/workflows/sbom-provenance.yaml) workflow:
+### Renamed from `security-checks`
 
-- Generates a **CycloneDX SBOM** with Trivy
-- Publishes the SBOM as a workflow artifact
-- Creates **SLSA SBOM** and **build provenance** attestations via GitHub’s
-  [`actions/attest-sbom`](https://github.com/actions/attest-sbom) and
-  [`actions/attest-build-provenance`](https://github.com/actions/attest-build-provenance)
+This project was renamed **Security Guardrails** (`security-guardrails`). Update
+consumer workflows:
 
-Verify attestations in the repository **Actions → attestations** UI or with
-the GitHub CLI.
+```yaml
+# Before
+uses: garretpatten/security-checks/.github/workflows/security-checks.yaml@master
 
-## Migration from Semgrep
+# After
+uses: garretpatten/security-guardrails/.github/workflows/security-guardrails.yaml@master
+```
+
+### From Semgrep
 
 The **`semgrep_run`** input was replaced by **`opengrep_run`**. OpenGrep uses
 the same registry rulesets and is a drop-in engine swap for Semgrep CE scans.
@@ -188,7 +180,7 @@ with:
 # After
 with:
   opengrep_run: true
-  supply_chain_run: true   # new — disable if you only want SAST + secrets
+  supply_chain_run: true   # disable if you only want SAST + secrets
 ```
 
 ## Philosophy: high signal, low noise

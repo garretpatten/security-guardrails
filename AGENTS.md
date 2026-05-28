@@ -1,4 +1,4 @@
-# Agent guide — security-checks
+# Agent guide — security-guardrails
 
 Reusable GitHub Actions workflows for pull-request security gates: **OpenGrep**
 SAST, **TruffleHog** verified secrets, and **supply-chain** scanning (Dependency
@@ -7,14 +7,13 @@ Review, Trivy CVE/license audit, CycloneDX SBOM). Keep changes **high-signal**,
 
 ## Repository layout
 
-| Path                                     | Purpose                                                       |
-| ---------------------------------------- | ------------------------------------------------------------- |
-| `.github/workflows/security-checks.yaml` | Reusable workflow consumed by other repos                     |
-| `.github/workflows/test-workflow.yaml`   | Self-test on PRs (calls reusable workflow)                    |
-| `.github/workflows/sbom-provenance.yaml` | CycloneDX SBOM + SLSA attestations on `master` / `v*` tags    |
-| `.github/workflows/quality-checks.yaml`  | Calls `garretpatten/quality-checks` (actionlint, yamllint, …) |
-| `docs/assets/`                           | Branding (shield mark SVG)                                    |
-| `.trivyignore`                           | Example path exclusions for Trivy (consumers copy/adapt)      |
+| Path                                         | Purpose                                                       |
+| -------------------------------------------- | ------------------------------------------------------------- |
+| `.github/workflows/security-guardrails.yaml` | Reusable workflow consumed by other repos                     |
+| `.github/workflows/test-workflow.yaml`       | Self-test on PRs (calls reusable workflow)                    |
+| `.github/workflows/quality-checks.yaml`      | Calls `garretpatten/quality-checks` (actionlint, yamllint, …) |
+| `docs/assets/`                               | Branding (shield mark SVG)                                    |
+| `.trivyignore`                               | Example path exclusions for Trivy (consumers copy/adapt)      |
 
 ## Workflow conventions
 
@@ -34,9 +33,8 @@ Review, Trivy CVE/license audit, CycloneDX SBOM). Keep changes **high-signal**,
 
 | Task                      | Edit                                                             |
 | ------------------------- | ---------------------------------------------------------------- |
-| Scanner behavior / inputs | `.github/workflows/security-checks.yaml` + README                |
+| Scanner behavior / inputs | `.github/workflows/security-guardrails.yaml` + README            |
 | Self-test wiring          | `.github/workflows/test-workflow.yaml`                           |
-| SBOM / SLSA attestations  | `.github/workflows/sbom-provenance.yaml`                         |
 | Docs / community files    | `README.md`, `CONTRIBUTING.md`, `SECURITY.md`, …                 |
 | Consumer path exclusions  | Document `.truffleignore` / `.trivyignore`; update examples here |
 

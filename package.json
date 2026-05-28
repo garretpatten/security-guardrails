@@ -1,4 +1,5 @@
 {
+  "name": "security-guardrails",
   "scripts": {
     "format": "prettier --write .",
     "format:check": "prettier --check .",
