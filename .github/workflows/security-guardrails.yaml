@@ -45,7 +45,8 @@ jobs:
 
     steps:
       - name: 'Checkout code'
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        # yamllint disable-line rule:line-length
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
 
@@ -90,7 +91,8 @@ jobs:
         if: >-
           always()
           && steps.changes.outputs.has_changes == 'true'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        # yamllint disable-line rule:line-length
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: opengrep-results
           path: opengrep-results.json
@@ -108,7 +110,8 @@ jobs:
 
     steps:
       - name: 'Checkout code'
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        # yamllint disable-line rule:line-length
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
 
@@ -127,7 +130,7 @@ jobs:
         id: trufflehog
         if: steps.changes.outputs.has_changes == 'true'
         # yamllint disable-line rule:line-length
-        uses: trufflesecurity/trufflehog@37b77001d0174ebec2fcca2bd83ff83a6d45a3ab
+        uses: trufflesecurity/trufflehog@37b77001d0174ebec2fcca2bd83ff83a6d45a3ab # v3.95.3
         with:
           path: ./
           base: ${{ github.event.repository.default_branch }}
@@ -151,7 +154,8 @@ jobs:
           always()
           && steps.changes.outputs.has_changes == 'true'
           && steps.trufflehog.outputs.results != ''
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        # yamllint disable-line rule:line-length
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: trufflehog-results
           path: trufflehog-results.json
@@ -173,17 +177,20 @@ jobs:
 
     steps:
       - name: 'Checkout code'
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        # yamllint disable-line rule:line-length
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: 'Dependency review'
-        uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294
+        # yamllint disable-line rule:line-length
+        uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
         with:
           fail-on-severity: high
           # yamllint disable-line rule:line-length
           deny-licenses: 'GPL-2.0,GPL-2.0-only,GPL-2.0-or-later,GPL-3.0,GPL-3.0-only,GPL-3.0-or-later,AGPL-1.0,AGPL-3.0,AGPL-3.0-only,AGPL-3.0-or-later,SSPL-1.0,BUSL-1.1'
 
       - name: 'Scan vulnerabilities (Trivy)'
-        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25
+        # yamllint disable-line rule:line-length
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           scan-type: 'fs'
           scan-ref: '.'
@@ -195,7 +202,8 @@ jobs:
           trivyignores: '.trivyignore'
 
       - name: 'Audit licenses (Trivy)'
-        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25
+        # yamllint disable-line rule:line-length
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           scan-type: 'fs'
           scan-ref: '.'
@@ -208,7 +216,8 @@ jobs:
           skip-setup-trivy: true
 
       - name: 'Generate CycloneDX SBOM'
-        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25
+        # yamllint disable-line rule:line-length
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           scan-type: 'fs'
           scan-ref: '.'
@@ -220,7 +229,8 @@ jobs:
           skip-setup-trivy: true
 
       - name: 'Upload SBOM'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        # yamllint disable-line rule:line-length
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: cyclonedx-sbom
           path: sbom.cyclonedx.json
