@@ -45,7 +45,7 @@ jobs:
 
     steps:
       - name: 'Checkout code'
-        uses: actions/checkout@8f4b7f84864484a7bf31766abe9204da3cbe65b3
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
         with:
           fetch-depth: 0
 
@@ -90,7 +90,7 @@ jobs:
         if: >-
           always()
           && steps.changes.outputs.has_changes == 'true'
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e682988f031c1facdb
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: opengrep-results
           path: opengrep-results.json
@@ -108,7 +108,7 @@ jobs:
 
     steps:
       - name: 'Checkout code'
-        uses: actions/checkout@8f4b7f84864484a7bf31766abe9204da3cbe65b3
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
         with:
           fetch-depth: 0
 
@@ -127,7 +127,7 @@ jobs:
         id: trufflehog
         if: steps.changes.outputs.has_changes == 'true'
         # yamllint disable-line rule:line-length
-        uses: trufflesecurity/trufflehog@36f6f697079e637bccb1e05561a481d8b4016862
+        uses: trufflesecurity/trufflehog@37b77001d0174ebec2fcca2bd83ff83a6d45a3ab
         with:
           path: ./
           base: ${{ github.event.repository.default_branch }}
@@ -151,7 +151,7 @@ jobs:
           always()
           && steps.changes.outputs.has_changes == 'true'
           && steps.trufflehog.outputs.results != ''
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e682988f031c1facdb
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: trufflehog-results
           path: trufflehog-results.json
@@ -173,17 +173,17 @@ jobs:
 
     steps:
       - name: 'Checkout code'
-        uses: actions/checkout@8f4b7f84864484a7bf31766abe9204da3cbe65b3
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
 
       - name: 'Dependency review'
-        uses: actions/dependency-review-action@3b139cfc5fae8b618d3eaeaa5d842581d9eb647a
+        uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294
         with:
           fail-on-severity: high
           # yamllint disable-line rule:line-length
           deny-licenses: 'GPL-2.0,GPL-2.0-only,GPL-2.0-or-later,GPL-3.0,GPL-3.0-only,GPL-3.0-or-later,AGPL-1.0,AGPL-3.0,AGPL-3.0-only,AGPL-3.0-or-later,SSPL-1.0,BUSL-1.1'
 
       - name: 'Scan vulnerabilities (Trivy)'
-        uses: aquasecurity/trivy-action@314ff8b43182423b84c50b1670b0e10f858f2d98
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25
         with:
           scan-type: 'fs'
           scan-ref: '.'
@@ -195,7 +195,7 @@ jobs:
           trivyignores: '.trivyignore'
 
       - name: 'Audit licenses (Trivy)'
-        uses: aquasecurity/trivy-action@314ff8b43182423b84c50b1670b0e10f858f2d98
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25
         with:
           scan-type: 'fs'
           scan-ref: '.'
@@ -208,7 +208,7 @@ jobs:
           skip-setup-trivy: true
 
       - name: 'Generate CycloneDX SBOM'
-        uses: aquasecurity/trivy-action@314ff8b43182423b84c50b1670b0e10f858f2d98
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25
         with:
           scan-type: 'fs'
           scan-ref: '.'
@@ -220,7 +220,7 @@ jobs:
           skip-setup-trivy: true
 
       - name: 'Upload SBOM'
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e682988f031c1facdb
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: cyclonedx-sbom
           path: sbom.cyclonedx.json
