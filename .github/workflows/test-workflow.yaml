@@ -7,6 +7,7 @@ jobs:
     name: 'Scans'
     uses: ./.github/workflows/security-checks.yaml
     with:
-      semgrep_run: true
+      opengrep_run: true
       trufflehog_run: true
+      supply_chain_run: true
     secrets: inherit

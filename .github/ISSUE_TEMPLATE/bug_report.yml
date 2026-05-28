@@ -1,0 +1,36 @@
+name: Bug report
+description: Workflow or scanner misbehavior in a consumer repository
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: >-
+        Include the workflow ref you pin, failing job logs (redacted), and a
+        minimal consumer workflow. Read **CONTRIBUTING.md** before submitting.
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: Expected vs actual
+      description: What should happen versus what occurred.
+    validations:
+      required: true
+
+  - type: textarea
+    id: consumer
+    attributes:
+      label: Consumer workflow snippet
+      description: The `uses:` block and relevant `with:` inputs.
+      render: yaml
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: CI logs (redacted)
+      description: Relevant job output or a link to a failed Actions run.
+      render: plaintext
+    validations:
+      required: false

@@ -1,5 +1,12 @@
 {
+  "scripts": {
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint:md": "markdownlint-cli2 \"**/*.md\" \"#node_modules\"",
+    "lint:yaml": "yamllint .github/workflows/*.yaml"
+  },
   "devDependencies": {
+    "markdownlint-cli2": "^0.18.1",
     "prettier": "^3.6.2"
   }
 }

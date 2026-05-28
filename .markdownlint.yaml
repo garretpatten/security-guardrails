@@ -1,0 +1,6 @@
+default: true
+
+# Prose, tables, and centered README badges exceed 80 columns.
+MD013: false
+MD033: false
+MD041: false

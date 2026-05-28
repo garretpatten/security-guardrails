@@ -1,24 +1,97 @@
-# Security Checks
+<!-- markdownlint-disable MD033 MD041 -->
 
-## Table of Contents
+<p align="center">
+    <img
+        src="./docs/assets/security-checks-mark.svg"
+        alt="Security Checks shield logo"
+        width="96"
+        height="96"
+    />
+</p>
 
-- Overview
-- Example Consumer Workflow
-- Reusable Workflow Architecture
-- Input Parameters
-- Supported Security Scanners
+<h1 align="center">Security Checks</h1>
+
+<p align="center">
+    <strong>High-signal reusable GitHub Actions security gates for pull requests.</strong>
+</p>
+
+<p align="center">
+    OpenGrep SAST, verified-only TruffleHog secrets, dependency review, Trivy
+    vulnerability and license audits, and CycloneDX SBOM artifacts — tuned for
+    low noise and actionable findings.
+</p>
+
+<p align="center">
+    <a href="./LICENSE"
+        ><img
+            src="https://img.shields.io/github/license/garretpatten/security-checks?style=flat-square"
+            alt="License: MIT"
+    /></a>
+    <img
+        src="https://img.shields.io/badge/SAST-OpenGrep-2563eb?style=flat-square&logo=securityscorecard&logoColor=white"
+        alt="SAST: OpenGrep"
+    />
+    <img
+        src="https://img.shields.io/badge/secrets-TruffleHog%20verified-7c3aed?style=flat-square"
+        alt="Secrets: TruffleHog verified only"
+    />
+    <img
+        src="https://img.shields.io/badge/supply%20chain-Trivy%20%2B%20SBOM-0ea5e9?style=flat-square&logo=dependabot&logoColor=white"
+        alt="Supply chain: Trivy and CycloneDX SBOM"
+    />
+</p>
+
+<p align="center">
+    <a href="https://github.com/garretpatten/security-checks/actions/workflows/test-workflow.yaml"
+        ><img
+            src="https://img.shields.io/github/actions/workflow/status/garretpatten/security-checks/test-workflow.yaml?branch=master&label=CI&logo=github&style=flat-square"
+            alt="Test workflow status"
+    /></a>
+    <a href="https://github.com/garretpatten/security-checks/actions/workflows/quality-checks.yaml"
+        ><img
+            src="https://img.shields.io/github/actions/workflow/status/garretpatten/security-checks/quality-checks.yaml?branch=master&label=quality&logo=github&style=flat-square"
+            alt="Quality checks workflow status"
+    /></a>
+    <a href="https://github.com/garretpatten/security-checks/actions/workflows/sbom-provenance.yaml"
+        ><img
+            src="https://img.shields.io/github/actions/workflow/status/garretpatten/security-checks/sbom-provenance.yaml?branch=master&label=SBOM%20%2B%20SLSA&logo=github&style=flat-square"
+            alt="SBOM and SLSA provenance workflow status"
+    /></a>
+</p>
+
+<p align="center">
+    ✓ PR-scoped SAST &nbsp;
+    ✓ Verified secrets only &nbsp;
+    ✓ CRITICAL/HIGH CVEs &nbsp;
+    ✓ Copyleft license guardrails &nbsp;
+    ✓ CycloneDX SBOM artifacts
+</p>
+
+<!-- markdownlint-enable MD033 MD041 -->
+
+---
 
 ## Overview
 
-This repository contains a reusable GitHub Actions workflow that performs
-security checks on code in pull requests. The workflow runs security scanners
-(Semgrep and TruffleHog) on committed code changes and fails if any security
-issues are detected.
+**Security Checks** is a [reusable GitHub Actions
+workflow](https://docs.github.com/en/actions/using-workflows/reusing-workflows)
+that runs on pull requests in consumer repositories. It focuses on **changed
+files and dependencies**, surfaces **high-confidence findings**, and uploads
+machine-readable results (JSON / CycloneDX) for downstream tooling.
 
-## Example Consumer Workflow
+| Job                      | Tool                                                               | What it catches                                                                      |
+| ------------------------ | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------ |
+| **OpenGrep – SAST**      | [OpenGrep](https://opengrep.dev/)                                  | ERROR-severity security patterns (`p/security-audit`, `p/owasp-top-ten`) in PR diffs |
+| **TruffleHog – Secrets** | [TruffleHog](https://github.com/trufflesecurity/trufflehog)        | **Verified** credentials only (`--results=verified`), JSON output                    |
+| **Supply Chain**         | Dependency Review + [Trivy](https://github.com/aquasecurity/trivy) | New vulnerable deps, CRITICAL/HIGH CVEs, forbidden copyleft licenses, CycloneDX SBOM |
 
-To use this reusable workflow in your repository, create a workflow file
-(e.g., `.github/workflows/security-checks.yml`) that calls it:
+This repository also publishes **SLSA build provenance** and **SBOM
+attestations** on pushes to `master` and version tags (see
+[Supply chain transparency](#supply-chain-transparency)).
+
+## Quick start
+
+Add a workflow in your repository (e.g. `.github/workflows/security-checks.yaml`):
 
 ```yaml
 name: 'Security Checks'
@@ -27,55 +100,121 @@ on: pull_request
 
 jobs:
   security-checks:
-    uses: garretpatten/security-checks/.github/workflows/security-checks.yml@master
+    uses: garretpatten/security-checks/.github/workflows/security-checks.yaml@master
     with:
-      semgrep_run: true
+      opengrep_run: true
       trufflehog_run: true
+      supply_chain_run: true
     secrets: inherit
 ```
 
-## Reusable Workflow Architecture
+**Pin a commit SHA** instead of `@master` for supply-chain control:
 
-This repository contains a reusable workflow located at
-`.github/workflows/security-checks.yml`. The workflow is designed to perform
-essential security checks across projects by running security scanners on code
-changes in pull requests.
+```yaml
+uses: garretpatten/security-checks/.github/workflows/security-checks.yaml@<full-commit-sha>
+```
 
-The workflow checks only the files that have been changed in the pull request,
-making it efficient and focused on the code being reviewed.
+## Workflow inputs
 
-## Input Parameters
+| Input              | Type    | Default         | Description                                      |
+| ------------------ | ------- | --------------- | ------------------------------------------------ |
+| `opengrep_run`     | boolean | `true`          | Run OpenGrep static analysis on changed files    |
+| `trufflehog_run`   | boolean | `true`          | Run TruffleHog secret scanning on the PR diff    |
+| `supply_chain_run` | boolean | `true`          | Dependency review, Trivy vuln/license scan, SBOM |
+| `opengrep_version` | string  | `v1.22.0`       | Pinned OpenGrep release tag                      |
+| `trivy_severity`   | string  | `CRITICAL,HIGH` | Minimum Trivy vulnerability severities           |
 
-| Parameter      | Type    | Required | Default | Description            |
-| -------------- | ------- | -------- | ------- | ---------------------- |
-| semgrep_run    | boolean | No       | true    | Run Semgrep scanner    |
-| trufflehog_run | boolean | No       | true    | Run TruffleHog scanner |
+Dependabot PRs are skipped automatically (same as before).
 
-## Supported Security Scanners
+## Scanners
 
-### Semgrep
+### OpenGrep (SAST)
 
-Semgrep is a fast, open-source static analysis tool for finding bugs and
-enforcing code standards. It checks code for security vulnerabilities, bugs,
-and anti-patterns across multiple languages. It checks the following file
-types:
+[OpenGrep](https://github.com/opengrep/opengrep) is an open-source fork of
+Semgrep CE with compatible rules and SARIF/JSON output. The workflow:
 
-- All supported languages (Python, JavaScript, TypeScript, Java, Go, C/C++,
-  and more)
+- Installs a **pinned release** via the official install script
+- Scans only **files changed in the PR**
+- Uses rulesets `p/security-audit` and `p/owasp-top-ten`
+- Fails only on **`ERROR` severity** findings to reduce noise
+- Uploads `opengrep-results.json` as a workflow artifact
 
-Semgrep will fail if it detects any security vulnerabilities or issues in the
-code. The workflow uses Semgrep's `--config=auto` flag, which automatically
-selects the appropriate rules based on the languages detected in your
-repository.
+### TruffleHog (secrets)
 
-### TruffleHog
+- Scans the PR diff (`base` → `HEAD`)
+- **`--results=verified`** — only secrets confirmed live by provider APIs
+- **`--json`** — structured output uploaded as an artifact
+- Respects **`.truffleignore`** in the consumer repository
 
-TruffleHog is a secrets scanning tool that detects exposed credentials and
-secrets in code repositories. It checks the following file types:
+### Supply chain
 
-- All files in the repository
+1. **GitHub Dependency Review** — blocks PRs that introduce dependencies with
+   **high-severity** advisories or **forbidden licenses** (GPL, AGPL, SSPL,
+   BUSL, and related identifiers).
+2. **Trivy filesystem scan** — CRITICAL/HIGH CVEs in lockfiles/manifests;
+   **`ignore-unfixed: true`** avoids failing on issues with no patch.
+3. **Trivy license audit** — flags **HIGH-severity (forbidden/copyleft)**
+   licenses with full license text matching.
+4. **CycloneDX SBOM** — `sbom.cyclonedx.json` uploaded per PR for audit and
+   compliance pipelines.
 
-TruffleHog will fail if it detects any verified secrets or credentials in the
-code. The workflow uses the `--only-verified` flag to reduce false positives
-by only reporting secrets that have been verified as active. It also respects
-`.truffleignore` files to exclude specific paths from scanning.
+Add a **`.trivyignore`** in your repo to exclude paths (see this repo’s
+example).
+
+## Supply chain transparency
+
+On pushes to **`master`** and tags matching **`v*`**, the
+[`sbom-provenance.yaml`](./.github/workflows/sbom-provenance.yaml) workflow:
+
+- Generates a **CycloneDX SBOM** with Trivy
+- Publishes the SBOM as a workflow artifact
+- Creates **SLSA SBOM** and **build provenance** attestations via GitHub’s
+  [`actions/attest-sbom`](https://github.com/actions/attest-sbom) and
+  [`actions/attest-build-provenance`](https://github.com/actions/attest-build-provenance)
+
+Verify attestations in the repository **Actions → attestations** UI or with
+the GitHub CLI.
+
+## Migration from Semgrep
+
+The **`semgrep_run`** input was replaced by **`opengrep_run`**. OpenGrep uses
+the same registry rulesets and is a drop-in engine swap for Semgrep CE scans.
+
+```yaml
+# Before
+with:
+  semgrep_run: true
+
+# After
+with:
+  opengrep_run: true
+  supply_chain_run: true   # new — disable if you only want SAST + secrets
+```
+
+## Philosophy: high signal, low noise
+
+| Choice                         | Rationale                                                 |
+| ------------------------------ | --------------------------------------------------------- |
+| ERROR-only OpenGrep            | Warnings often reflect style or lower-confidence patterns |
+| Verified TruffleHog only       | Unverified entropy matches create alert fatigue           |
+| CRITICAL/HIGH + ignore-unfixed | Focus on exploitable, patchable CVEs                      |
+| Forbidden license list         | Surfaces copyleft / business-risk licenses in new deps    |
+| PR-scoped SAST                 | Faster feedback; aligns with code under review            |
+
+## Community
+
+| Resource                                | Use                                           |
+| --------------------------------------- | --------------------------------------------- |
+| [Code of Conduct](./CODE_OF_CONDUCT.md) | Expected behavior in issues and PRs           |
+| [Contributing](./CONTRIBUTING.md)       | Branching, local checks, workflow conventions |
+| [Security policy](./SECURITY.md)        | Vulnerability reporting (not public issues)   |
+
+## Maintainers
+
+[@garretpatten](https://github.com/garretpatten/)
+
+Use the [issue templates](./.github/ISSUE_TEMPLATE/) for bugs and enhancements.
+
+## License
+
+This project is licensed under the [MIT License](./LICENSE).
