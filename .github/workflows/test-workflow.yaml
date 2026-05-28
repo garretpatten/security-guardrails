@@ -1,0 +1,13 @@
+name: 'Test Action'
+
+on: pull_request
+
+jobs:
+  scans:
+    name: 'Scans'
+    uses: ./.github/workflows/security-guardrails.yaml
+    with:
+      opengrep_run: true
+      trufflehog_run: true
+      supply_chain_run: true
+    secrets: inherit

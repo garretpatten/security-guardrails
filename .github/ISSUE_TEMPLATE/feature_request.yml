@@ -1,0 +1,33 @@
+name: Feature request
+description: New scanner, input, or supply-chain capability
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: >-
+        Describe the security outcome you want and why existing jobs do not
+        cover it. Prefer high-signal, low-noise additions.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What gap does this fill (SAST, secrets, SCA, SBOM, licenses)?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed approach
+      description: Scanner, config flags, or workflow input you have in mind.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+    validations:
+      required: false
