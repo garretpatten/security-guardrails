@@ -1,0 +1,227 @@
+name: 'Security Guardrails'
+
+on:
+  workflow_call:
+    inputs:
+      opengrep_run:
+        description: 'Run OpenGrep static analysis (SAST)'
+        required: false
+        type: boolean
+        default: true
+      trufflehog_run:
+        description: 'Run TruffleHog secret scanning'
+        required: false
+        type: boolean
+        default: true
+      supply_chain_run:
+        description: >-
+          Run dependency review, vulnerability scan, license audit, and SBOM
+        required: false
+        type: boolean
+        default: true
+      opengrep_version:
+        description: 'Pinned OpenGrep release tag (e.g. v1.22.0)'
+        required: false
+        type: string
+        default: 'v1.22.0'
+      trivy_severity:
+        description: 'Minimum Trivy vulnerability severities (comma-separated)'
+        required: false
+        type: string
+        default: 'CRITICAL,HIGH'
+
+permissions:
+  contents: read
+
+jobs:
+  opengrep:
+    name: 'OpenGrep - SAST'
+    runs-on: ubuntu-latest
+    # yamllint disable-line rule:line-length
+    if: >-
+      github.event_name == 'pull_request'
+      && github.actor != 'dependabot[bot]'
+      && inputs.opengrep_run == true
+
+    steps:
+      - name: 'Checkout code'
+        uses: actions/checkout@8f4b7f84864484a7bf31766abe9204da3cbe65b3
+        with:
+          fetch-depth: 0
+
+      - name: 'Check for changes'
+        id: changes
+        # yamllint disable rule:line-length
+        run: |
+          if [ -n "$(git diff --name-only --diff-filter=ACMRT \
+            "${{ github.event.repository.default_branch }}"...HEAD)" ]; then
+            echo "has_changes=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: 'Install OpenGrep'
+        if: steps.changes.outputs.has_changes == 'true'
+        env:
+          OPENGREP_VERSION: ${{ inputs.opengrep_version }}
+        run: |
+          curl -fsSL \
+            https://raw.githubusercontent.com/opengrep/opengrep/main/install.sh \
+            | bash -s -- -v "$OPENGREP_VERSION"
+          echo "${HOME}/.opengrep/cli/latest" >> "$GITHUB_PATH"
+
+      - name: 'Run OpenGrep'
+        if: steps.changes.outputs.has_changes == 'true'
+        run: |
+          git diff --name-only --diff-filter=ACMRT \
+            "${{ github.event.repository.default_branch }}"...HEAD \
+            > changed-files.txt
+          mapfile -t changed_files < changed-files.txt
+          opengrep scan \
+            --config p/security-audit \
+            --config p/owasp-top-ten \
+            --severity ERROR \
+            --error \
+            --metrics off \
+            --json-output=opengrep-results.json \
+            "${changed_files[@]}"
+
+      - name: 'Upload OpenGrep results'
+        if: >-
+          always()
+          && steps.changes.outputs.has_changes == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e682988f031c1facdb
+        with:
+          name: opengrep-results
+          path: opengrep-results.json
+          if-no-files-found: ignore
+          retention-days: 14
+
+  trufflehog:
+    name: 'TruffleHog - Secrets'
+    runs-on: ubuntu-latest
+    # yamllint disable-line rule:line-length
+    if: >-
+      github.event_name == 'pull_request'
+      && github.actor != 'dependabot[bot]'
+      && inputs.trufflehog_run == true
+
+    steps:
+      - name: 'Checkout code'
+        uses: actions/checkout@8f4b7f84864484a7bf31766abe9204da3cbe65b3
+        with:
+          fetch-depth: 0
+
+      - name: 'Check for changes'
+        id: changes
+        # yamllint disable rule:line-length
+        run: |
+          if [ -n "$(git diff --name-only \
+            "${{ github.event.repository.default_branch }}"...HEAD)" ]; then
+            echo "has_changes=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: 'Run TruffleHog'
+        id: trufflehog
+        if: steps.changes.outputs.has_changes == 'true'
+        # yamllint disable-line rule:line-length
+        uses: trufflesecurity/trufflehog@36f6f697079e637bccb1e05561a481d8b4016862
+        with:
+          path: ./
+          base: ${{ github.event.repository.default_branch }}
+          head: HEAD
+          extra_args: >-
+            --exclude-paths=.truffleignore
+            --results=verified
+            --json
+
+      - name: 'Persist TruffleHog JSON'
+        if: >-
+          always()
+          && steps.changes.outputs.has_changes == 'true'
+          && steps.trufflehog.outputs.results != ''
+        run: |
+          printf '%s' "${{ steps.trufflehog.outputs.results }}" \
+            > trufflehog-results.json
+
+      - name: 'Upload TruffleHog results'
+        if: >-
+          always()
+          && steps.changes.outputs.has_changes == 'true'
+          && steps.trufflehog.outputs.results != ''
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e682988f031c1facdb
+        with:
+          name: trufflehog-results
+          path: trufflehog-results.json
+          if-no-files-found: ignore
+          retention-days: 14
+
+  supply-chain:
+    name: 'Supply Chain'
+    runs-on: ubuntu-latest
+    # yamllint disable-line rule:line-length
+    if: >-
+      github.event_name == 'pull_request'
+      && github.actor != 'dependabot[bot]'
+      && inputs.supply_chain_run == true
+
+    permissions:
+      contents: read
+      pull-requests: read
+
+    steps:
+      - name: 'Checkout code'
+        uses: actions/checkout@8f4b7f84864484a7bf31766abe9204da3cbe65b3
+
+      - name: 'Dependency review'
+        uses: actions/dependency-review-action@3b139cfc5fae8b618d3eaeaa5d842581d9eb647a
+        with:
+          fail-on-severity: high
+          # yamllint disable-line rule:line-length
+          deny-licenses: 'GPL-2.0,GPL-2.0-only,GPL-2.0-or-later,GPL-3.0,GPL-3.0-only,GPL-3.0-or-later,AGPL-1.0,AGPL-3.0,AGPL-3.0-only,AGPL-3.0-or-later,SSPL-1.0,BUSL-1.1'
+
+      - name: 'Scan vulnerabilities (Trivy)'
+        uses: aquasecurity/trivy-action@314ff8b43182423b84c50b1670b0e10f858f2d98
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          scanners: 'vuln'
+          severity: ${{ inputs.trivy_severity }}
+          ignore-unfixed: true
+          format: 'table'
+          exit-code: '1'
+          trivyignores: '.trivyignore'
+
+      - name: 'Audit licenses (Trivy)'
+        uses: aquasecurity/trivy-action@314ff8b43182423b84c50b1670b0e10f858f2d98
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          scanners: 'license'
+          license-full: true
+          severity: 'HIGH'
+          format: 'table'
+          exit-code: '1'
+          trivyignores: '.trivyignore'
+          skip-setup-trivy: true
+
+      - name: 'Generate CycloneDX SBOM'
+        uses: aquasecurity/trivy-action@314ff8b43182423b84c50b1670b0e10f858f2d98
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          scanners: 'vuln,license'
+          format: 'cyclonedx'
+          output: 'sbom.cyclonedx.json'
+          trivyignores: '.trivyignore'
+          exit-code: '0'
+          skip-setup-trivy: true
+
+      - name: 'Upload SBOM'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e682988f031c1facdb
+        with:
+          name: cyclonedx-sbom
+          path: sbom.cyclonedx.json
+          retention-days: 30
