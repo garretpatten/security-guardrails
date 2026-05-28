@@ -20,9 +20,19 @@ Use [GitHub Issues](https://github.com/garretpatten/security-checks/issues) with
 ```bash
 npm install
 
+npm run lint
+```
+
+Or step by step:
+
+```bash
 npx prettier --check .
 npx markdownlint-cli2 "**/*.md" "#node_modules"
 yamllint .github/workflows/*.yaml
+actionlint
 ```
+
+Install **actionlint** locally if missing (`brew install actionlint`). Workflow
+edits **must** pass **actionlint** before merge.
 
 Documentation-only changes still need **`prettier`** and **`markdownlint`** on touched Markdown files.

@@ -76,6 +76,7 @@ jobs:
           git diff --name-only --diff-filter=ACMRT \
             "${{ github.event.repository.default_branch }}"...HEAD \
             > changed-files.txt
+          mapfile -t changed_files < changed-files.txt
           opengrep scan \
             --config p/security-audit \
             --config p/owasp-top-ten \
@@ -83,7 +84,7 @@ jobs:
             --error \
             --metrics off \
             --json-output=opengrep-results.json \
-            $(cat changed-files.txt)
+            "${changed_files[@]}"
 
       - name: 'Upload OpenGrep results'
         if: >-
