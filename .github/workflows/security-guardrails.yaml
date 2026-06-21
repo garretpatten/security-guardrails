@@ -188,6 +188,13 @@ jobs:
           # yamllint disable-line rule:line-length
           deny-licenses: 'GPL-2.0,GPL-2.0-only,GPL-2.0-or-later,GPL-3.0,GPL-3.0-only,GPL-3.0-or-later,AGPL-1.0,AGPL-3.0,AGPL-3.0-only,AGPL-3.0-or-later,SSPL-1.0,BUSL-1.1'
 
+      - name: 'Resolve Trivy ignore file'
+        id: trivyignore
+        run: |
+          if [ -f .trivyignore ]; then
+            echo "path=.trivyignore" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: 'Scan vulnerabilities (Trivy)'
         # yamllint disable-line rule:line-length
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
@@ -199,7 +206,7 @@ jobs:
           ignore-unfixed: true
           format: 'table'
           exit-code: '1'
-          trivyignores: '.trivyignore'
+          trivyignores: ${{ steps.trivyignore.outputs.path }}
 
       - name: 'Audit licenses (Trivy)'
         # yamllint disable-line rule:line-length
@@ -212,7 +219,7 @@ jobs:
           severity: 'HIGH'
           format: 'table'
           exit-code: '1'
-          trivyignores: '.trivyignore'
+          trivyignores: ${{ steps.trivyignore.outputs.path }}
           skip-setup-trivy: true
 
       - name: 'Generate CycloneDX SBOM'
@@ -224,7 +231,7 @@ jobs:
           scanners: 'vuln,license'
           format: 'cyclonedx'
           output: 'sbom.cyclonedx.json'
-          trivyignores: '.trivyignore'
+          trivyignores: ${{ steps.trivyignore.outputs.path }}
           exit-code: '0'
           skip-setup-trivy: true
 
