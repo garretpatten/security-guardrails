@@ -9,7 +9,7 @@
     "lint:workflows": "actionlint"
   },
   "devDependencies": {
-    "markdownlint-cli2": "^0.23.0",
+    "markdownlint-cli2": "^0.23.2",
     "prettier": "^3.6.2"
   }
 }
