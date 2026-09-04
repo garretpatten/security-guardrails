@@ -74,11 +74,11 @@ that runs on pull requests in consumer repositories. It focuses on **changed
 files and dependencies**, surfaces **high-confidence findings**, and uploads
 machine-readable results (JSON / CycloneDX) for downstream tooling.
 
-| Job                      | Tool                                                               | What it catches                                                                      |
-| ------------------------ | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------ |
-| **OpenGrep – SAST**      | [OpenGrep](https://opengrep.dev/)                                  | ERROR-severity security patterns (`p/security-audit`, `p/owasp-top-ten`) in PR diffs |
-| **TruffleHog – Secrets** | [TruffleHog](https://github.com/trufflesecurity/trufflehog)        | **Verified** credentials only (`--results=verified`), JSON output                    |
-| **Supply Chain**         | Dependency Review + [Trivy](https://github.com/aquasecurity/trivy) | New vulnerable deps, CRITICAL/HIGH CVEs, forbidden copyleft licenses, CycloneDX SBOM |
+| Job                      | Tool                                                               | What it catches                                                                                |
+| ------------------------ | ------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------- |
+| **OpenGrep – SAST**      | [OpenGrep](https://opengrep.dev/)                                  | ERROR-severity security patterns (`p/security-audit`, `p/owasp-top-ten`) in PR diffs           |
+| **TruffleHog – Secrets** | [TruffleHog](https://github.com/trufflesecurity/trufflehog)        | **Verified** credentials only (`--results=verified`), JSON output                              |
+| **Supply Chain**         | Dependency Review + [Trivy](https://github.com/aquasecurity/trivy) | New vulnerable deps, CRITICAL/HIGH CVEs, forbidden copyleft/high-risk licenses, CycloneDX SBOM |
 
 ## Quick start
 
@@ -140,8 +140,11 @@ Semgrep CE with compatible rules and SARIF/JSON output. The workflow:
 ### Supply chain
 
 1. **GitHub Dependency Review** — blocks PRs that introduce dependencies with
-   **high-severity** advisories or **forbidden licenses** (GPL, AGPL, SSPL,
-   BUSL, and related identifiers).
+   **high-severity** advisories or **forbidden licenses**. The deny list lives
+   in [`.github/dependency-review-config.yml`](./.github/dependency-review-config.yml)
+   and covers strong/weak copyleft, source-available, and other high-risk
+   licenses (GPL, AGPL, LGPL, MPL, CDDL, EPL, EUPL, CECILL, SSPL, BUSL, Elastic,
+   and related identifiers).
 2. **Trivy filesystem scan** — CRITICAL/HIGH CVEs in lockfiles/manifests;
    **`ignore-unfixed: true`** avoids failing on issues with no patch.
 3. **Trivy license audit** — flags **HIGH-severity (forbidden/copyleft)**
@@ -190,7 +193,7 @@ with:
 | ERROR-only OpenGrep            | Warnings often reflect style or lower-confidence patterns |
 | Verified TruffleHog only       | Unverified entropy matches create alert fatigue           |
 | CRITICAL/HIGH + ignore-unfixed | Focus on exploitable, patchable CVEs                      |
-| Forbidden license list         | Surfaces copyleft / business-risk licenses in new deps    |
+| Forbidden license list         | Surfaces copyleft / high-risk licenses in new deps        |
 | PR-scoped SAST                 | Faster feedback; aligns with code under review            |
 
 ## Community
