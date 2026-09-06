@@ -126,6 +126,18 @@ jobs:
             echo "has_changes=false" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: 'Resolve TruffleHog ignore file'
+        id: truffleignore
+        run: |
+          if [ ! -f .truffleignore ]; then
+            workflow_ref="${{ github.workflow_ref }}"
+            repo="${workflow_ref%/.github/*}"
+            ref="${workflow_ref##*@}"
+            curl -fsSL \
+              "https://raw.githubusercontent.com/${repo}/${ref}/.truffleignore" \
+              -o .truffleignore
+          fi
+
       - name: 'Run TruffleHog'
         id: trufflehog
         if: steps.changes.outputs.has_changes == 'true'
@@ -180,6 +192,19 @@ jobs:
         # yamllint disable-line rule:line-length
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
+      - name: 'Resolve dependency review config'
+        id: dependency-review-config
+        run: |
+          if [ ! -f .github/dependency-review-config.yml ]; then
+            workflow_ref="${{ github.workflow_ref }}"
+            repo="${workflow_ref%/.github/*}"
+            ref="${workflow_ref##*@}"
+            mkdir -p .github
+            curl -fsSL \
+              "https://raw.githubusercontent.com/${repo}/${ref}/.github/dependency-review-config.yml" \
+              -o .github/dependency-review-config.yml
+          fi
+
       - name: 'Dependency review'
         # yamllint disable-line rule:line-length
         uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
@@ -189,9 +214,15 @@ jobs:
       - name: 'Resolve Trivy ignore file'
         id: trivyignore
         run: |
-          if [ -f .trivyignore ]; then
-            echo "path=.trivyignore" >> "$GITHUB_OUTPUT"
+          if [ ! -f .trivyignore ]; then
+            workflow_ref="${{ github.workflow_ref }}"
+            repo="${workflow_ref%/.github/*}"
+            ref="${workflow_ref##*@}"
+            curl -fsSL \
+              "https://raw.githubusercontent.com/${repo}/${ref}/.trivyignore" \
+              -o .trivyignore
           fi
+          echo "path=.trivyignore" >> "$GITHUB_OUTPUT"
 
       - name: 'Scan vulnerabilities (Trivy)'
         # yamllint disable-line rule:line-length

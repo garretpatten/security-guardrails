@@ -135,7 +135,8 @@ Semgrep CE with compatible rules and SARIF/JSON output. The workflow:
 - Scans the PR diff (`base` → `HEAD`)
 - **`--results=verified`** — only secrets confirmed live by provider APIs
 - **`--json`** — structured output uploaded as an artifact
-- Respects **`.truffleignore`** in the consumer repository
+- Respects **`.truffleignore`** in the consumer repository; falls back to this
+  repository's empty default if none is provided
 
 ### Supply chain
 
@@ -144,7 +145,8 @@ Semgrep CE with compatible rules and SARIF/JSON output. The workflow:
    in [`.github/dependency-review-config.yml`](./.github/dependency-review-config.yml)
    and covers strong/weak copyleft, source-available, and other high-risk
    licenses (GPL, AGPL, LGPL, MPL, CDDL, EPL, EUPL, CECILL, SSPL, BUSL, Elastic,
-   and related identifiers).
+   and related identifiers). If the consumer repository does not define this
+   file, the workflow falls back to the default in this repository.
 2. **Trivy filesystem scan** — CRITICAL/HIGH CVEs in lockfiles/manifests;
    **`ignore-unfixed: true`** avoids failing on issues with no patch.
 3. **Trivy license audit** — flags **HIGH-severity (forbidden/copyleft)**
@@ -153,7 +155,7 @@ Semgrep CE with compatible rules and SARIF/JSON output. The workflow:
    compliance pipelines.
 
 Add a **`.trivyignore`** in your repo to exclude paths (see this repo’s
-example).
+example); otherwise the workflow falls back to this repository's default.
 
 ## Migration
 
