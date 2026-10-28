@@ -5,6 +5,10 @@ on: pull_request
 permissions:
   contents: read
 
+concurrency:
+  group: test-action-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   scans:
     name: 'Scans'
@@ -13,4 +17,118 @@ jobs:
       opengrep_run: true
       trufflehog_run: true
       supply_chain_run: true
-    secrets: inherit
+
+  # End-to-end proof that the gates can actually detect findings: scanners
+  # run against a planted fixture (generated at runtime, never committed to
+  # the repository) and the job fails when a scanner does not report the
+  # planted finding.
+  detection-smoke:
+    name: 'Detection smoke test'
+    runs-on: ubuntu-latest
+    if: github.actor != 'dependabot[bot]'
+
+    steps:
+      - name: 'Checkout code'
+        # yamllint disable-line rule:line-length
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: 'Plant detection fixtures'
+        run: |
+          set -euo pipefail
+          fixture_dir="${RUNNER_TEMP}/detection-fixtures"
+          mkdir -p "${fixture_dir}"
+          cat > "${fixture_dir}/sast-fixture.py" <<'EOF'
+          import subprocess
+
+
+          def run_command(user_input):
+              subprocess.call("ls -la " + user_input, shell=True)
+          EOF
+          openssl genrsa -out "${fixture_dir}/secrets-fixture.pem" 2048
+          echo "Fixtures planted in ${fixture_dir} (runtime-only," \
+            "not part of the repository)."
+
+      - name: 'Install cosign'
+        # yamllint disable-line rule:line-length
+        uses: sigstore/cosign-installer@b9c35392b7c1401bcc77d30c9b07cf4b1c7a7b07 # v4.1.2
+
+      - name: 'Install OpenGrep (pinned, signature-verified)'
+        env:
+          OPENGREP_VERSION: 'v1.22.0'
+        run: |
+          set -euo pipefail
+          # ubuntu-latest runners are linux/amd64 (glibc).
+          asset='opengrep_manylinux_x86'
+          base_url='https://github.com/opengrep/opengrep/releases/download'
+          url="${base_url}/${OPENGREP_VERSION}/${asset}"
+          dir="${RUNNER_TEMP}/opengrep"
+          mkdir -p "${dir}"
+          curl -fsSL -o "${dir}/opengrep" "${url}"
+          curl -fsSL -o "${dir}/opengrep.cert" "${url}.cert"
+          curl -fsSL -o "${dir}/opengrep.sig" "${url}.sig"
+          cosign verify-blob \
+            --cert "${dir}/opengrep.cert" \
+            --signature "${dir}/opengrep.sig" \
+            --certificate-identity-regexp \
+              'https://github.com/opengrep/opengrep.+' \
+            --certificate-oidc-issuer \
+              'https://token.actions.githubusercontent.com' \
+            "${dir}/opengrep"
+          chmod 0755 "${dir}/opengrep"
+          "${dir}/opengrep" --version
+          echo "${dir}" >> "${GITHUB_PATH}"
+
+      - name: 'Assert OpenGrep detects the planted SAST finding'
+        env:
+          FIXTURE_DIR: ${{ runner.temp }}/detection-fixtures
+        run: |
+          set -euo pipefail
+          if opengrep scan \
+            --config p/security-audit \
+            --config p/owasp-top-ten \
+            --severity ERROR \
+            --error \
+            "${FIXTURE_DIR}/sast-fixture.py"; then
+            echo '::error::OpenGrep did not detect the planted' \
+              'ERROR-severity finding; the SAST gate cannot be trusted.'
+            exit 1
+          fi
+          echo 'OpenGrep detected the planted finding' \
+            '(scan exited non-zero as expected).'
+
+      - name: 'Assert TruffleHog detects the planted credential'
+        env:
+          FIXTURE_DIR: ${{ runner.temp }}/detection-fixtures
+          TRUFFLEHOG_IMAGE: 'ghcr.io/trufflesecurity/trufflehog'
+          # yamllint disable-line rule:line-length
+          TRUFFLEHOG_DIGEST: 'sha256:52e67fef4d054ecff5c2ce4b4ae376626d1ef54aa0898b53cac19c25e92e14db' # v3.97.9
+        run: |
+          set -euo pipefail
+          image="${TRUFFLEHOG_IMAGE}@${TRUFFLEHOG_DIGEST}"
+          # --fail exits 183 when results are found; the fixture key is a
+          # throwaway generated at runtime, so any detection proves the gate.
+          set +e
+          docker run --rm -v "${FIXTURE_DIR}:/scan" -w /scan "${image}" \
+            filesystem /scan \
+            --fail \
+            --no-update \
+            --sarif \
+            > /dev/null
+          rc=$?
+          set -e
+          case "${rc}" in
+            183)
+              echo 'TruffleHog detected the planted credential' \
+                '(exit 183 as expected).'
+              ;;
+            0)
+              echo '::error::TruffleHog did not detect the planted' \
+                'credential; the secrets gate cannot be trusted.'
+              exit 1
+              ;;
+            *)
+              echo "::error::TruffleHog smoke scan failed with exit" \
+                "code ${rc}."
+              exit 1
+              ;;
+          esac
