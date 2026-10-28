@@ -13,7 +13,7 @@ Use [GitHub Issues](https://github.com/garretpatten/security-guardrails/issues) 
 - Branch from **`master`**, focused scope per PR.
 - Pin third-party actions to full commit SHAs; let Dependabot propose bumps.
 - Keep scanners **high-signal**: prefer verified secrets, ERROR-severity SAST, and CRITICAL/HIGH dependency findings.
-- Document breaking workflow input changes in the README migration section.
+- Document breaking workflow input changes in the upcoming tagged release's notes.
 
 ### Checks (from repo root)
 

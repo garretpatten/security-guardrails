@@ -196,8 +196,8 @@ own TruffleHog run using `--results=verified,unknown`.
    > ([actions/dependency-review-action#938](https://github.com/actions/dependency-review-action/issues/938))
    > and may be removed in its next major release. The planned migration is
    > to an `allow-licenses` allow-list policy; it will ship as a tagged
-   > release with a migration note here, coordinated with upstream's
-   > timeline.
+   > release with a migration note in its release notes, coordinated with
+   > upstream's timeline.
 
 2. **Trivy filesystem scan** — CRITICAL/HIGH CVEs in lockfiles/manifests;
    **`ignore-unfixed: true`** avoids failing on issues with no patch.
@@ -219,46 +219,6 @@ vulnerability/check IDs to waive. To exclude paths from Trivy scans, use the
 `trivy_skip_dirs` workflow input or a Trivy config file in the consumer
 repository. Without a consumer `.trivyignore`, the workflow falls back to this
 repository's default.
-
-## Migration
-
-### TruffleHog results now SARIF (was JSON)
-
-The `trufflehog-results` JSON artifact was **removed**: it contained the raw
-values of detected secrets, so archiving it exposed live credential material
-to anyone who could read run artifacts. Results are now uploaded as the
-`trufflehog-results-sarif` artifact, which contains finding metadata
-(detector, file, line) but no raw secret values. Consume SARIF instead, or
-run your own TruffleHog step if you need JSON output.
-
-### Renamed from `security-checks`
-
-This project was renamed **Security Guardrails** (`security-guardrails`). Update
-consumer workflows:
-
-```yaml
-# Before
-uses: garretpatten/security-checks/.github/workflows/security-checks.yaml@master
-
-# After
-uses: garretpatten/security-guardrails/.github/workflows/security-guardrails.yaml@master
-```
-
-### From Semgrep
-
-The **`semgrep_run`** input was replaced by **`opengrep_run`**. OpenGrep uses
-the same registry rulesets and is a drop-in engine swap for Semgrep CE scans.
-
-```yaml
-# Before
-with:
-  semgrep_run: true
-
-# After
-with:
-  opengrep_run: true
-  supply_chain_run: true   # disable if you only want SAST + secrets
-```
 
 ## Philosophy: high signal, low noise
 

@@ -24,7 +24,7 @@ Review, Trivy CVE/license audit, CycloneDX SBOM). Keep changes **high-signal**,
    pinned by digest in the `trufflehog` job — Dependabot cannot bump digests
    inside `run:` blocks, so update `TRUFFLEHOG_DIGEST` manually per release.
 2. **Reusable workflow inputs** must stay documented in **README.md**; breaking
-   renames need a migration section.
+   renames are called out in the tagged release's notes.
 3. **Shell steps** in workflows: quote variables, use arrays for file lists
    (avoid unquoted `$(…)` — shellcheck SC2046).
 4. **Noise controls**: OpenGrep `ERROR` only, TruffleHog `--results=verified`,
