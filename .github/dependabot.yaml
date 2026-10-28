@@ -1,0 +1,13 @@
+version: 2
+updates:
+  # Keep third-party action pins fresh. Version updates are intentionally
+  # scoped to GitHub Actions: the two npm devDependencies are covered by
+  # Dependabot security updates without a version-update schedule.
+  - package-ecosystem: 'github-actions'
+    directory: '/'
+    schedule:
+      interval: 'weekly'
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: 'build'
+      include: 'scope'

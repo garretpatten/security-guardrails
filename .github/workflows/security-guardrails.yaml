@@ -29,9 +29,22 @@ on:
         required: false
         type: string
         default: 'CRITICAL,HIGH'
+      trivy_skip_dirs:
+        description: >-
+          Comma-separated directories excluded from Trivy scans (opt-in);
+          overrides default path handling
+        required: false
+        type: string
+        default: ''
 
 permissions:
   contents: read
+
+# Superseded runs of the same pull request are cancelled. Callers should not
+# reuse this concurrency group name in their own workflows.
+concurrency:
+  group: security-guardrails-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   opengrep:
@@ -39,8 +52,7 @@ jobs:
     runs-on: ubuntu-latest
     # yamllint disable-line rule:line-length
     if: >-
-      github.event_name == 'pull_request'
-      && github.actor != 'dependabot[bot]'
+      github.actor != 'dependabot[bot]'
       && inputs.opengrep_run == true
 
     steps:
@@ -50,40 +62,101 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: 'Check for changes'
-        id: changes
-        # yamllint disable rule:line-length
+      - name: 'Preflight: validate trigger and resolve diff base'
+        id: preflight
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          BASE_REF: ${{ github.base_ref }}
         run: |
-          if [ -n "$(git diff --name-only --diff-filter=ACMRT \
-            "${{ github.event.repository.default_branch }}"...HEAD)" ]; then
-            echo "has_changes=true" >> "$GITHUB_OUTPUT"
+          set -euo pipefail
+          if [ "${EVENT_NAME}" != 'pull_request' ]; then
+            echo "::error::This workflow requires a pull_request event" \
+              "(got '${EVENT_NAME}'); unsupported events fail loudly" \
+              "instead of silently passing. See the caller contract in" \
+              "the security-guardrails README."
+            exit 1
+          fi
+          base="${PR_BASE_SHA}"
+          if [ -z "${base}" ] \
+            || ! git cat-file -e "${base}^{commit}" 2>/dev/null; then
+            base="origin/${BASE_REF}"
+          fi
+          if ! git cat-file -e "${base}^{commit}" 2>/dev/null; then
+            echo "::error::Unable to resolve the pull request diff base" \
+              "(tried '${PR_BASE_SHA}' then 'origin/${BASE_REF}');" \
+              "aborting instead of silently skipping the scan."
+            exit 1
+          fi
+          sha="$(git rev-parse --verify "${base}^{commit}")"
+          echo "base_sha=${sha}" >> "${GITHUB_OUTPUT}"
+          echo "Diff base resolved to ${sha}"
+
+      - name: 'Check for changed files'
+        id: changes
+        env:
+          BASE_SHA: ${{ steps.preflight.outputs.base_sha }}
+        run: |
+          set -euo pipefail
+          diff_file="${RUNNER_TEMP}/changed-files.z"
+          git diff --name-only --diff-filter=ACMRT -z \
+            "${BASE_SHA}...HEAD" > "${diff_file}"
+          mapfile -d '' -t changed_files < "${diff_file}"
+          if [ "${#changed_files[@]}" -eq 0 ]; then
+            echo "has_changes=false" >> "${GITHUB_OUTPUT}"
+            echo '::notice::No changed files to scan.'
           else
-            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+            echo "has_changes=true" >> "${GITHUB_OUTPUT}"
+            echo "Scanning ${#changed_files[@]} changed file(s)."
           fi
 
-      - name: 'Install OpenGrep'
+      - name: 'Install cosign'
+        if: steps.changes.outputs.has_changes == 'true'
+        # yamllint disable-line rule:line-length
+        uses: sigstore/cosign-installer@b9c35392b7c1401bcc77d30c9b07cf4b1c7a7b07 # v4.1.2
+
+      - name: 'Install OpenGrep (pinned, signature-verified)'
         if: steps.changes.outputs.has_changes == 'true'
         env:
           OPENGREP_VERSION: ${{ inputs.opengrep_version }}
         run: |
-          curl -fsSL \
-            https://raw.githubusercontent.com/opengrep/opengrep/main/install.sh \
-            | bash -s -- -v "$OPENGREP_VERSION"
-          echo "${HOME}/.opengrep/cli/latest" >> "$GITHUB_PATH"
+          set -euo pipefail
+          # ubuntu-latest runners are linux/amd64 (glibc).
+          asset='opengrep_manylinux_x86'
+          base_url='https://github.com/opengrep/opengrep/releases/download'
+          url="${base_url}/${OPENGREP_VERSION}/${asset}"
+          dir="${RUNNER_TEMP}/opengrep"
+          mkdir -p "${dir}"
+          curl -fsSL -o "${dir}/opengrep" "${url}"
+          curl -fsSL -o "${dir}/opengrep.cert" "${url}.cert"
+          curl -fsSL -o "${dir}/opengrep.sig" "${url}.sig"
+          cosign verify-blob \
+            --cert "${dir}/opengrep.cert" \
+            --signature "${dir}/opengrep.sig" \
+            --certificate-identity-regexp \
+              'https://github.com/opengrep/opengrep.+' \
+            --certificate-oidc-issuer \
+              'https://token.actions.githubusercontent.com' \
+            "${dir}/opengrep"
+          chmod 0755 "${dir}/opengrep"
+          "${dir}/opengrep" --version
+          echo "${dir}" >> "${GITHUB_PATH}"
 
       - name: 'Run OpenGrep'
         if: steps.changes.outputs.has_changes == 'true'
+        env:
+          BASE_SHA: ${{ steps.preflight.outputs.base_sha }}
         run: |
-          git diff --name-only --diff-filter=ACMRT \
-            "${{ github.event.repository.default_branch }}"...HEAD \
-            > changed-files.txt
-          mapfile -t changed_files < changed-files.txt
+          set -euo pipefail
+          diff_file="${RUNNER_TEMP}/changed-files.z"
+          git diff --name-only --diff-filter=ACMRT -z \
+            "${BASE_SHA}...HEAD" > "${diff_file}"
+          mapfile -d '' -t changed_files < "${diff_file}"
           opengrep scan \
             --config p/security-audit \
             --config p/owasp-top-ten \
             --severity ERROR \
             --error \
-            --metrics off \
             --json-output=opengrep-results.json \
             "${changed_files[@]}"
 
@@ -104,8 +177,7 @@ jobs:
     runs-on: ubuntu-latest
     # yamllint disable-line rule:line-length
     if: >-
-      github.event_name == 'pull_request'
-      && github.actor != 'dependabot[bot]'
+      github.actor != 'dependabot[bot]'
       && inputs.trufflehog_run == true
 
     steps:
@@ -115,66 +187,130 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: 'Check for changes'
-        id: changes
-        # yamllint disable rule:line-length
+      - name: 'Preflight: validate trigger and resolve diff base'
+        id: preflight
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          BASE_REF: ${{ github.base_ref }}
         run: |
-          if [ -n "$(git diff --name-only \
-            "${{ github.event.repository.default_branch }}"...HEAD)" ]; then
-            echo "has_changes=true" >> "$GITHUB_OUTPUT"
+          set -euo pipefail
+          if [ "${EVENT_NAME}" != 'pull_request' ]; then
+            echo "::error::This workflow requires a pull_request event" \
+              "(got '${EVENT_NAME}'); unsupported events fail loudly" \
+              "instead of silently passing. See the caller contract in" \
+              "the security-guardrails README."
+            exit 1
+          fi
+          base="${PR_BASE_SHA}"
+          if [ -z "${base}" ] \
+            || ! git cat-file -e "${base}^{commit}" 2>/dev/null; then
+            base="origin/${BASE_REF}"
+          fi
+          if ! git cat-file -e "${base}^{commit}" 2>/dev/null; then
+            echo "::error::Unable to resolve the pull request diff base" \
+              "(tried '${PR_BASE_SHA}' then 'origin/${BASE_REF}');" \
+              "aborting instead of silently skipping the scan."
+            exit 1
+          fi
+          sha="$(git rev-parse --verify "${base}^{commit}")"
+          echo "base_sha=${sha}" >> "${GITHUB_OUTPUT}"
+          echo "Diff base resolved to ${sha}"
+
+      - name: 'Check for changed files'
+        id: changes
+        env:
+          BASE_SHA: ${{ steps.preflight.outputs.base_sha }}
+        run: |
+          set -euo pipefail
+          diff_file="${RUNNER_TEMP}/changed-files.z"
+          git diff --name-only --diff-filter=ACMRT -z \
+            "${BASE_SHA}...HEAD" > "${diff_file}"
+          mapfile -d '' -t changed_files < "${diff_file}"
+          if [ "${#changed_files[@]}" -eq 0 ]; then
+            echo "has_changes=false" >> "${GITHUB_OUTPUT}"
+            echo '::notice::No changed files to scan.'
           else
-            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+            echo "has_changes=true" >> "${GITHUB_OUTPUT}"
+            echo "Scanning ${#changed_files[@]} changed file(s)."
           fi
 
       - name: 'Resolve TruffleHog ignore file'
-        id: truffleignore
         run: |
-          if [ ! -f .truffleignore ]; then
-            repo="${{ job.workflow_repository }}"
-            ref="${{ job.workflow_sha }}"
-            base_url="https://raw.githubusercontent.com"
-            path=".truffleignore"
-            fallback_repo="garretpatten/security-guardrails"
-            url="${base_url}/${repo}/${ref}/${path}"
-            fallback_url="${base_url}/${fallback_repo}/master/${path}"
-            if ! curl -fsSL "$url" -o ".truffleignore"; then
-              curl -fsSL "$fallback_url" -o ".truffleignore"
-            fi
+          set -euo pipefail
+          if [ -f .truffleignore ]; then
+            echo 'Using consumer .truffleignore.'
+            exit 0
           fi
+          base_url='https://raw.githubusercontent.com'
+          fallback_repo='garretpatten/security-guardrails'
+          path='.truffleignore'
+          tmp="$(mktemp)"
+          url="${base_url}/${WORKFLOW_REPO}/${WORKFLOW_SHA}/${path}"
+          fallback_url="${base_url}/${fallback_repo}/master/${path}"
+          if curl -fsSL "${url}" -o "${tmp}"; then
+            mv "${tmp}" "${path}"
+            echo "Fetched default ${path} from" \
+              "${WORKFLOW_REPO}@${WORKFLOW_SHA}."
+          elif curl -fsSL "${fallback_url}" -o "${tmp}"; then
+            mv "${tmp}" "${path}"
+            echo "::notice::Fetched default ${path} from" \
+              "${fallback_repo}@master (mutable fallback, last resort)."
+          else
+            echo "::error::No ${path} in the consumer repository and the" \
+              "security-guardrails default could not be fetched."
+            exit 1
+          fi
+        env:
+          WORKFLOW_REPO: ${{ job.workflow_repository }}
+          WORKFLOW_SHA: ${{ job.workflow_sha }}
 
       - name: 'Run TruffleHog'
-        id: trufflehog
         if: steps.changes.outputs.has_changes == 'true'
-        # yamllint disable-line rule:line-length
-        uses: trufflesecurity/trufflehog@4dd8831c5f12599465d4d45c3c447b4018a34c85 # v3.97.9
-        with:
-          path: ./
-          base: ${{ github.event.repository.default_branch }}
-          head: HEAD
-          extra_args: >-
-            --exclude-paths=.truffleignore
-            --results=verified
-            --json
-
-      - name: 'Persist TruffleHog JSON'
-        if: >-
-          always()
-          && steps.changes.outputs.has_changes == 'true'
-          && steps.trufflehog.outputs.results != ''
+        env:
+          BASE_SHA: ${{ steps.preflight.outputs.base_sha }}
+          TRUFFLEHOG_IMAGE: 'ghcr.io/trufflesecurity/trufflehog'
+          # yamllint disable-line rule:line-length
+          TRUFFLEHOG_DIGEST: 'sha256:52e67fef4d054ecff5c2ce4b4ae376626d1ef54aa0898b53cac19c25e92e14db' # v3.97.9
         run: |
-          printf '%s' "${{ steps.trufflehog.outputs.results }}" \
-            > trufflehog-results.json
+          set -euo pipefail
+          image="${TRUFFLEHOG_IMAGE}@${TRUFFLEHOG_DIGEST}"
+          head_sha="$(git rev-parse --verify HEAD)"
+          # --fail exits 183 when results match the --results filter.
+          set +e
+          docker run --rm -v "$PWD:/scan" -w /scan "${image}" \
+            git file:///scan \
+            --since-commit "${BASE_SHA}" \
+            --branch "${head_sha}" \
+            --exclude-paths=.truffleignore \
+            --results=verified \
+            --fail \
+            --no-update \
+            --sarif \
+            > trufflehog-results.sarif
+          rc=$?
+          set -e
+          if [ "${rc}" -eq 183 ]; then
+            echo '::error::TruffleHog found verified secret(s). Rotate the' \
+              'exposed credentials immediately; findings are detailed in' \
+              'the trufflehog-results-sarif artifact.'
+            exit 1
+          fi
+          if [ "${rc}" -ne 0 ]; then
+            echo "::error::TruffleHog scan failed with exit code ${rc}."
+            exit 1
+          fi
+          echo 'TruffleHog found no verified secrets.'
 
-      - name: 'Upload TruffleHog results'
+      - name: 'Upload TruffleHog SARIF'
         if: >-
           always()
           && steps.changes.outputs.has_changes == 'true'
-          && steps.trufflehog.outputs.results != ''
         # yamllint disable-line rule:line-length
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: trufflehog-results
-          path: trufflehog-results.json
+          name: trufflehog-results-sarif
+          path: trufflehog-results.sarif
           if-no-files-found: ignore
           retention-days: 14
 
@@ -183,34 +319,56 @@ jobs:
     runs-on: ubuntu-latest
     # yamllint disable-line rule:line-length
     if: >-
-      github.event_name == 'pull_request'
-      && github.actor != 'dependabot[bot]'
+      github.actor != 'dependabot[bot]'
       && inputs.supply_chain_run == true
-
-    permissions:
-      contents: read
-      pull-requests: read
 
     steps:
       - name: 'Checkout code'
         # yamllint disable-line rule:line-length
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: 'Resolve dependency review config'
-        id: dependency-review-config
+      - name: 'Preflight: validate trigger'
+        env:
+          EVENT_NAME: ${{ github.event_name }}
         run: |
-          if [ ! -f .github/dependency-review-config.yml ]; then
-            repo="${{ job.workflow_repository }}"
-            ref="${{ job.workflow_sha }}"
-            base_url="https://raw.githubusercontent.com"
-            path=".github/dependency-review-config.yml"
-            fallback_repo="garretpatten/security-guardrails"
-            url="${base_url}/${repo}/${ref}/${path}"
-            fallback_url="${base_url}/${fallback_repo}/master/${path}"
-            mkdir -p .github
-            if ! curl -fsSL "$url" -o ".github/dependency-review-config.yml"; then
-              curl -fsSL "$fallback_url" -o ".github/dependency-review-config.yml"
-            fi
+          set -euo pipefail
+          if [ "${EVENT_NAME}" != 'pull_request' ]; then
+            echo "::error::This workflow requires a pull_request event" \
+              "(got '${EVENT_NAME}'); unsupported events fail loudly" \
+              "instead of silently passing. See the caller contract in" \
+              "the security-guardrails README."
+            exit 1
+          fi
+
+      - name: 'Resolve dependency review config'
+        env:
+          WORKFLOW_REPO: ${{ job.workflow_repository }}
+          WORKFLOW_SHA: ${{ job.workflow_sha }}
+        run: |
+          set -euo pipefail
+          path='.github/dependency-review-config.yml'
+          if [ -f "${path}" ]; then
+            echo "Using consumer ${path}."
+            exit 0
+          fi
+          base_url='https://raw.githubusercontent.com'
+          fallback_repo='garretpatten/security-guardrails'
+          tmp="$(mktemp)"
+          url="${base_url}/${WORKFLOW_REPO}/${WORKFLOW_SHA}/${path}"
+          fallback_url="${base_url}/${fallback_repo}/master/${path}"
+          mkdir -p .github
+          if curl -fsSL "${url}" -o "${tmp}"; then
+            mv "${tmp}" "${path}"
+            echo "Fetched default ${path} from" \
+              "${WORKFLOW_REPO}@${WORKFLOW_SHA}."
+          elif curl -fsSL "${fallback_url}" -o "${tmp}"; then
+            mv "${tmp}" "${path}"
+            echo "::notice::Fetched default ${path} from" \
+              "${fallback_repo}@master (mutable fallback, last resort)."
+          else
+            echo "::error::No ${path} in the consumer repository and the" \
+              "security-guardrails default could not be fetched."
+            exit 1
           fi
 
       - name: 'Dependency review'
@@ -221,24 +379,39 @@ jobs:
 
       - name: 'Resolve Trivy ignore file'
         id: trivyignore
+        env:
+          WORKFLOW_REPO: ${{ job.workflow_repository }}
+          WORKFLOW_SHA: ${{ job.workflow_sha }}
         run: |
-          if [ ! -f .trivyignore ]; then
-            repo="${{ job.workflow_repository }}"
-            ref="${{ job.workflow_sha }}"
-            base_url="https://raw.githubusercontent.com"
-            path=".trivyignore"
-            fallback_repo="garretpatten/security-guardrails"
-            url="${base_url}/${repo}/${ref}/${path}"
+          set -euo pipefail
+          path='.trivyignore'
+          if [ -f "${path}" ]; then
+            echo "Using consumer ${path}."
+          else
+            base_url='https://raw.githubusercontent.com'
+            fallback_repo='garretpatten/security-guardrails'
+            tmp="$(mktemp)"
+            url="${base_url}/${WORKFLOW_REPO}/${WORKFLOW_SHA}/${path}"
             fallback_url="${base_url}/${fallback_repo}/master/${path}"
-            if ! curl -fsSL "$url" -o ".trivyignore"; then
-              curl -fsSL "$fallback_url" -o ".trivyignore"
+            if curl -fsSL "${url}" -o "${tmp}"; then
+              mv "${tmp}" "${path}"
+              echo "Fetched default ${path} from" \
+                "${WORKFLOW_REPO}@${WORKFLOW_SHA}."
+            elif curl -fsSL "${fallback_url}" -o "${tmp}"; then
+              mv "${tmp}" "${path}"
+              echo "::notice::Fetched default ${path} from" \
+                "${fallback_repo}@master (mutable fallback, last resort)."
+            else
+              echo "::error::No ${path} in the consumer repository and" \
+                "the security-guardrails default could not be fetched."
+              exit 1
             fi
           fi
-          echo "path=.trivyignore" >> "$GITHUB_OUTPUT"
+          echo "path=${path}" >> "${GITHUB_OUTPUT}"
 
       - name: 'Scan vulnerabilities (Trivy)'
         # yamllint disable-line rule:line-length
-        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # 0.36.0
         with:
           scan-type: 'fs'
           scan-ref: '.'
@@ -247,11 +420,12 @@ jobs:
           ignore-unfixed: true
           format: 'table'
           exit-code: '1'
+          skip-dirs: ${{ inputs.trivy_skip_dirs }}
           trivyignores: ${{ steps.trivyignore.outputs.path }}
 
       - name: 'Audit licenses (Trivy)'
         # yamllint disable-line rule:line-length
-        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # 0.36.0
         with:
           scan-type: 'fs'
           scan-ref: '.'
@@ -260,18 +434,20 @@ jobs:
           severity: 'HIGH'
           format: 'table'
           exit-code: '1'
+          skip-dirs: ${{ inputs.trivy_skip_dirs }}
           trivyignores: ${{ steps.trivyignore.outputs.path }}
           skip-setup-trivy: true
 
       - name: 'Generate CycloneDX SBOM'
         # yamllint disable-line rule:line-length
-        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # 0.36.0
         with:
           scan-type: 'fs'
           scan-ref: '.'
           scanners: 'vuln,license'
           format: 'cyclonedx'
           output: 'sbom.cyclonedx.json'
+          skip-dirs: ${{ inputs.trivy_skip_dirs }}
           trivyignores: ${{ steps.trivyignore.outputs.path }}
           exit-code: '0'
           skip-setup-trivy: true

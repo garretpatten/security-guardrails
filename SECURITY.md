@@ -2,7 +2,11 @@
 
 ## Supported scope
 
-Security fixes ship on the default branch (**`master`**). Consume this reusable workflow by pinning a commit SHA or tag rather than blindly tracking **`master`** when supply-chain control matters.
+Security fixes ship on the default branch (**`master`**) and are tagged as
+releases (`v1`, `v2`, …) with short notes describing scanner behavior changes.
+Consume this reusable workflow by pinning a commit SHA or tag rather than
+blindly tracking **`master`** when supply-chain control matters; subscribe to
+releases to learn about updates.
 
 ## Reporting a vulnerability
 

@@ -18,7 +18,11 @@ Review, Trivy CVE/license audit, CycloneDX SBOM). Keep changes **high-signal**,
 
 ## Workflow conventions
 
-1. **Pin actions** to full commit SHAs; let Dependabot open bump PRs.
+1. **Pin actions** to full commit SHAs; let Dependabot open bump PRs
+   (version updates are scoped to the `github-actions` ecosystem in
+   `.github/dependabot.yaml`). The TruffleHog scan runs via a Docker image
+   pinned by digest in the `trufflehog` job — Dependabot cannot bump digests
+   inside `run:` blocks, so update `TRUFFLEHOG_DIGEST` manually per release.
 2. **Reusable workflow inputs** must stay documented in **README.md**; breaking
    renames need a migration section.
 3. **Shell steps** in workflows: quote variables, use arrays for file lists

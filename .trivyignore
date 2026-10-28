@@ -1,1 +1,9 @@
-node_modules/
+# Trivy ignore file for security-guardrails.
+#
+# This file lists Trivy finding IDs (e.g. CVE-2026-12345) to waive, one per
+# line, optionally followed by an explanatory comment. It does NOT exclude
+# paths: path exclusions are configured via the trivy_skip_dirs workflow
+# input or a Trivy config file.
+#
+# Example:
+# CVE-2026-12345  # waived pending upstream fix
