@@ -50,7 +50,7 @@ jobs:
 
       - name: 'Install cosign'
         # yamllint disable-line rule:line-length
-        uses: sigstore/cosign-installer@b9c35392b7c1401bcc77d30c9b07cf4b1c7a7b07 # v4.1.2
+        uses: sigstore/cosign-installer@756fe2d284c7292c4e9b62c8a28f1e5629c59532 # v4.1.2
 
       - name: 'Install OpenGrep (pinned, signature-verified)'
         env:
