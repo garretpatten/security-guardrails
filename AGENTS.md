@@ -18,8 +18,8 @@ Review, Trivy CVE/license audit, CycloneDX SBOM). Keep changes **high-signal**,
 
 ## Workflow conventions
 
-1. **Pin actions** to full commit SHAs; let Dependabot open bump PRs
-   (version updates are scoped to the `github-actions` ecosystem in
+1. **Pin actions** to full commit SHAs; update them manually — Dependabot
+   does **not** open PRs here (`open-pull-requests-limit: 0` in
    `.github/dependabot.yaml`). The TruffleHog scan runs via a Docker image
    pinned by digest in the `trufflehog` job — Dependabot cannot bump digests
    inside `run:` blocks, so update `TRUFFLEHOG_DIGEST` manually per release.
